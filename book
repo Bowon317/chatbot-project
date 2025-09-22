@@ -1,0 +1,359 @@
+//require('dotenv').config();
+/*const lineService = require('./services/line');
+const places = require('./services/places');
+const gemini = require('./services/gemini');
+const db = require('./services/db');
+
+function textMessage(text) { return { type: 'text', text }; }
+
+function isGreeting(text) { const greetings = ['สวัสดี', 'hi', 'hello', 'hey']; return greetings.some(g => text.toLowerCase().includes(g)); }
+
+// Helper: build Flex carousel for places (up to limit)
+function buildPlacesFlex(results, limit = 5) {
+  const items = (results && results.results) ? results.results.slice(0, limit) : [];
+  const googleApiKey = process.env.GOOGLE_API_KEY;
+  const bubbles = items.map(place => {
+    const title = (place.name || 'Unknown');
+    const address = (place.vicinity || place.formatted_address || '');
+    let imageUrl = 'https://via.placeholder.com/1024x512?text=No+Image';
+    if (place.photos && place.photos[0] && place.photos[0].photo_reference && googleApiKey) {
+      const ref = encodeURIComponent(place.photos[0].photo_reference);
+      imageUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=1024&photoreference=${ref}&key=${googleApiKey}`;
+    } else if (place.icon) {
+      imageUrl = place.icon;
+    }
+    const lat = place.geometry && place.geometry.location && place.geometry.location.lat;
+    const lng = place.geometry && place.geometry.location && place.geometry.location.lng;
+    const mapsUrl = (lat && lng) ? `https://www.google.com/maps/search/?api=1&query=${lat},${lng}` : `https://www.google.com/maps/search/${encodeURIComponent(title)}`;
+
+    return {
+      type: 'bubble',
+      hero: {
+        type: 'image',
+        url: imageUrl,
+        size: 'full',
+        aspectRatio: '20:13',
+        aspectMode: 'cover'
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [
+          { type: 'text', text: title, weight: 'bold', size: 'md', wrap: true },
+          { type: 'text', text: address, size: 'sm', color: '#666666', wrap: true, margin: 'md' }
+        ]
+      },
+      footer: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [
+          {
+            type: 'button',
+            action: { type: 'uri', label: 'Open on Map', uri: mapsUrl },
+            color: '#007AFF',
+            style: 'primary'
+          }
+        ]
+      }
+    };
+  });
+
+  if (bubbles.length === 0) return null;
+
+  return {
+    type: 'flex',
+    altText: 'Search results',
+    contents: {
+      type: 'carousel',
+      contents: bubbles
+    }
+  };
+}
+
+async function handleEvent(req, res) {
+  const events = req.body.events || [];
+  res.status(200).send('OK');
+  for (const ev of events) {
+    try {
+      if (ev.type === 'message') await handleMessageEvent(ev);
+      else if (ev.type === 'postback') await handlePostbackEvent(ev);
+      else if (ev.type === 'follow') db.setUser(ev.source.userId);
+    } catch (err) { console.error('Error handling event', err); }
+  }
+}
+
+async function handlePostbackEvent(ev) {
+  const userId = ev.source.userId;
+  const data = ev.postback.data || '';
+  switch (data) {
+    case 'search_places':
+      await db.setContext(userId, 'awaiting_search_query', {});
+      await lineService.replyMessage(ev.replyToken, [textMessage('Please type the name of the place you want to search for.')]);
+      break;
+    case 'places_near_me':
+      await db.setContext(userId, 'awaiting_location_for_nearby', {});
+      await lineService.replyMessage(ev.replyToken, [textMessage('Please share your location so I can find places near you.')]);
+      break;
+    case 'popular_recommendations':
+      await db.setContext(userId, 'awaiting_province_for_popular', {});
+      await lineService.replyMessage(ev.replyToken, [textMessage('Which province or country are you interested in?')]);
+      break;
+    case 'search_by_category':
+      await db.setContext(userId, 'awaiting_category', {});
+      await lineService.replyMessage(ev.replyToken, [textMessage('Please type a category (e.g., restaurants, temples, beaches).')]);
+      break;
+    case 'plan_my_trip':
+      // Start multi-step trip planning: ask for destination first
+      await db.setContext(userId, 'planning_trip_destination', { trip: {} });
+      await lineService.replyMessage(ev.replyToken, [textMessage('Let\'s plan your trip. What is your desired destination?')]);
+      break;
+    case 'general_inquiry':
+      // Put user into general inquiry mode so subsequent messages are routed to Gemini
+      await db.setContext(userId, 'general_inquiry', {});
+      await lineService.replyMessage(ev.replyToken, [textMessage('You are now in General Inquiry mode. Ask me anything and I will reply.')]);
+      break;
+    default:
+      await lineService.replyMessage(ev.replyToken, [textMessage('Unknown action')]);
+  }
+}
+
+async function handleMessageEvent(ev) {
+  const userId = ev.source.userId;
+  if (ev.message.type === 'text') {
+    const text = ev.message.text.trim();
+    await db.addHistory(userId, 'text', { text });
+    const ctx = await db.getContext(userId);
+
+    // Escape / cancel command to clear context
+    const escapeCmd = /^(cancel|back|ยกเลิก|กลับ)$/i;
+    if (escapeCmd.test(text)) {
+      await db.setContext(userId, null, {});
+      await lineService.replyMessage(ev.replyToken, [textMessage('Conversation cancelled. You can start again from the menu.')]);
+      return;
+    }
+
+    // Handle Rich Menu buttons that send plain text (exact labels and common variants)
+    const norm = text.toLowerCase();
+
+    // "Search Places" button
+    if (
+      text === 'Search Places' ||
+      norm === 'search places' ||
+      norm === 'search_places' ||
+      text === 'ค้นหาสถานที่'
+    ) {
+      await db.setContext(userId, 'awaiting_search_query', {});
+      await lineService.replyMessage(ev.replyToken, [textMessage('Please type the name of the place you want to search for.')]);
+      return;
+    }
+
+    // "Places Near Me" button
+    if (
+      text === 'Places Near Me' ||
+      norm === 'places near me' ||
+      norm === 'places_near_me' ||
+      text === 'ใกล้ฉัน'
+    ) {
+      await db.setContext(userId, 'awaiting_location_for_nearby', {});
+      await lineService.replyMessage(ev.replyToken, [textMessage('Please share your location so I can find places near you.')]);
+      return;
+    }
+
+    // "Search by Category" button
+    if (
+      text === 'Search by Category' ||
+      norm === 'search by category' ||
+      norm === 'search_by_category' ||
+      text === 'ค้นหาตามหมวดหมู่'
+    ) {
+      await db.setContext(userId, 'awaiting_category', {});
+      await lineService.replyMessage(ev.replyToken, [textMessage('Please type a category (e.g., restaurants, temples, beaches).')]);
+      return;
+    }
+
+    // "Popular Recommendations" button (plain-text from Rich Menu)
+    // Added: when user taps the Rich Menu button that sends "แนะนำยอดนิยม",
+    // set context to awaiting_province_for_popular and ask in Thai for province/country.
+    if (
+      text === 'แนะนำยอดนิยม' ||
+      norm === 'popular recommendations' ||
+      norm === 'popular_recommendations' ||
+      text === 'Popular Recommendations'
+    ) {
+      await db.setContext(userId, 'awaiting_province_for_popular', {});
+      await lineService.replyMessage(ev.replyToken, [textMessage('คุณสนใจจังหวัดหรือประเทศอะไรครับ?')]);
+      return;
+    }
+
+    // "Plan a Trip" button text fallback
+    if (
+      text === 'Plan a Trip' ||
+      norm === 'plan a trip' ||
+      norm === 'plan_my_trip' ||
+      text === 'วางแผนการเดินทาง'
+    ) {
+      await db.setContext(userId, 'planning_trip_destination', { trip: {} });
+      await lineService.replyMessage(ev.replyToken, [textMessage('Let\'s plan your trip. What is your desired destination?')]);
+      return;
+    }
+
+    // "General Inquiry" button
+    if (
+      text === 'General Inquiry' ||
+      norm === 'general inquiry' ||
+      norm === 'general_inquiry' ||
+      text === 'ทั่วไป'
+    ) {
+      await db.setContext(userId, 'general_inquiry', {});
+      await lineService.replyMessage(ev.replyToken, [textMessage('You are now in General Inquiry mode. Ask me anything and I will reply.')]);
+      return;
+    }
+
+    // --- Multi-step Trip Planning flow ---
+    if (ctx.state === 'planning_trip_destination') {
+      const meta = ctx.meta || {};
+      meta.trip = meta.trip || {};
+      meta.trip.destination = text;
+      await db.setContext(userId, 'planning_trip_days', meta);
+      await lineService.replyMessage(ev.replyToken, [textMessage('How many days will you be traveling?')]);
+      return;
+    }
+
+    if (ctx.state === 'planning_trip_days') {
+      const meta = ctx.meta || {};
+      meta.trip = meta.trip || {};
+      const days = parseInt(text, 10);
+      meta.trip.days = Number.isNaN(days) ? text : days;
+      await db.setContext(userId, 'planning_trip_style', meta);
+      await lineService.replyMessage(ev.replyToken, [textMessage('What\'s your travel style (e.g., nature, food, culture)?')]);
+      return;
+    }
+
+    if (ctx.state === 'planning_trip_style') {
+      const meta = ctx.meta || {};
+      meta.trip = meta.trip || {};
+      meta.trip.style = text;
+      // Build prompt and call Gemini to create itinerary
+      const dest = meta.trip.destination || 'your destination';
+      const days = meta.trip.days || 'a few';
+      const style = meta.trip.style || 'mixed';
+      const prompt = `Create a ${days}-day travel itinerary for ${dest} focused on ${style}. Provide day-by-day outline, 3-5 activities per day, and suggested places in Thailand where applicable.`;
+      const gm = await gemini.generateText(prompt);
+      const reply = gm.text || JSON.stringify(gm);
+      await lineService.replyMessage(ev.replyToken, [textMessage(reply)]);
+      await db.setContext(userId, null, {}); // clear after completion
+      return;
+    }
+
+    // --- Awaiting search query or category: perform text search and return Flex ---
+    if (ctx.state === 'awaiting_search_query' || ctx.state === 'awaiting_category') {
+      const results = await places.textSearch(text);
+      // log search history for analytics/personalization
+      await db.addHistory(userId, 'search', { query: text, count: (results && results.results && results.results.length) || 0 });
+      const flex = buildPlacesFlex(results, 5);
+      if (flex) {
+        await lineService.replyMessage(ev.replyToken, [flex]);
+      } else {
+        const reply = places.formatResults(results, 5);
+        await lineService.replyMessage(ev.replyToken, [textMessage(reply)]);
+      }
+      await db.setContext(userId, null, {});
+      return;
+    }
+
+    // Province for popular recommendations (now uses Flex Message)
+    if (ctx.state === 'awaiting_province_for_popular') {
+      const results = await places.textSearch(`popular places in ${text} Thailand`);
+      
+      // สร้าง Flex Message จากผลลัพธ์ที่ได้จาก Places API
+      const flex = buildPlacesFlex(results, 5); 
+      
+      // ถ้าสร้าง Flex Message ได้ ให้ตอบกลับด้วย Flex Message
+      if (flex) {
+        await lineService.replyMessage(ev.replyToken, [flex]);
+      } else {
+        // ถ้า Places API ค้นหาไม่เจอ (flex เป็น null)
+        // ให้เรียกใช้ Gemini เพื่อสร้างคำแนะนำแทน
+        const gm = await gemini.generateText(`Recommend 5 popular tourist places in ${text}, Thailand with short descriptions.`);
+        // ใช้คำตอบจาก Gemini แทน
+        const reply = gm.text || 'ขออภัย ไม่สามารถแนะนำสถานที่ยอดนิยมในตอนนี้ได้';
+        await lineService.replyMessage(ev.replyToken, [textMessage(reply)]);
+      }
+
+      await db.setContext(userId, null, {});
+      return;
+    }
+
+    // Trip details legacy state (kept for backward-compatibility)
+    if (ctx.state === 'awaiting_trip_details') {
+      const prompt = `Create a simple travel plan for: ${text}. Provide a day-by-day outline, 3-5 activities per day, and suggested places in Thailand.`;
+      const gm = await gemini.generateText(prompt);
+      const reply = gm.text || JSON.stringify(gm);
+      await lineService.replyMessage(ev.replyToken, [textMessage(reply)]);
+      await db.setContext(userId, null, {});
+      return;
+    }
+
+    // Nearby textual queries asking "near me" -> ask for location (keeps previous behavior)
+    if (/near me/i.test(text) || /nearby/i.test(text) || /ใกล้ฉัน/.test(text)) {
+      await db.setContext(userId, 'awaiting_location_for_nearby_query', { query: text });
+      await lineService.replyMessage(ev.replyToken, [textMessage('Please share your location so I can find places near you.')]);
+      return;
+    }
+
+    // General inquiry routing to Gemini
+    if (isGreeting(text) || ctx.state === 'general_conversation') {
+      if (ctx.state === 'general_inquiry') {
+        const gm = await gemini.generateText(`User says: ${text}\nRespond in Thai in a friendly tone.`);
+        const reply = gm.text || JSON.stringify(gm);
+        await lineService.replyMessage(ev.replyToken, [textMessage(reply)]);
+        return;
+      }
+      const gm = await gemini.generateText(`User says: ${text}\nRespond in Thai in a friendly tone.`);
+      const reply = gm.text || JSON.stringify(gm);
+      await lineService.replyMessage(ev.replyToken, [textMessage(reply)]);
+      return;
+    }
+
+    // Default: perform a normal text search and return Flex if possible
+    const results = await places.textSearch(text);
+    await db.addHistory(userId, 'search', { query: text, count: (results && results.results && results.results.length) || 0 });
+    const flex = buildPlacesFlex(results, 5);
+    if (flex) {
+      await lineService.replyMessage(ev.replyToken, [flex]);
+    } else {
+      const reply = places.formatResults(results, 5);
+      await lineService.replyMessage(ev.replyToken, [textMessage(reply)]);
+    }
+
+  } else if (ev.message.type === 'location') {
+    const loc = ev.message;
+    const userId = ev.source.userId;
+    const ctx = await db.getContext(userId);
+    if (ctx.state === 'awaiting_location_for_nearby' || ctx.state === 'awaiting_location_for_nearby_query') {
+      const lat = loc.latitude;
+      const lng = loc.longitude;
+      const query = (ctx.meta && ctx.meta.query) || '';
+      let results = query ? await places.textSearch(query, { lat, lng }) : await places.nearbySearch({ lat, lng });
+      if (query && (!results || (results.results && results.results.length === 0))) {
+        console.debug('textSearch returned no results, falling back to nearbySearch with keyword=', query);
+        results = await places.nearbySearch({ lat, lng }, 2000, null, query);
+      }
+      console.debug('Places API response:', results && results.status, (results && results.results && results.results.length) || 0);
+      // Log search with location
+      await db.addHistory(userId, 'search', { query: query || 'nearby', lat, lng, count: (results && results.results && results.results.length) || 0 });
+      const flex = buildPlacesFlex(results, 5);
+      if (flex) {
+        await lineService.replyMessage(ev.replyToken, [flex]);
+      } else {
+        const reply = places.formatResults(results, 5);
+        await lineService.replyMessage(ev.replyToken, [textMessage(reply)]);
+      }
+      await db.setContext(userId, null, {});
+      return;
+    }
+    await lineService.replyMessage(ev.replyToken, [textMessage('Thanks for the location! Tell me what you want to find near there.')]);
+  }
+}
+
+module.exports = { handleEvent };*/
