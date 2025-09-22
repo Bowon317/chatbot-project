@@ -88,32 +88,32 @@ async function handlePostbackEvent(ev) {
   switch (data) {
     case 'search_places':
       await db.setContext(userId, 'awaiting_search_query', {});
-      await lineService.replyMessage(ev.replyToken, [textMessage('Please type the name of the place you want to search for.')]);
+      await lineService.replyMessage(ev.replyToken, [textMessage('กรุณาพิมพ์ชื่อสถานที่ที่คุณต้องการค้นหา')]);
       break;
     case 'places_near_me':
       await db.setContext(userId, 'awaiting_location_for_nearby', {});
-      await lineService.replyMessage(ev.replyToken, [textMessage('Please share your location so I can find places near you.')]);
+      await lineService.replyMessage(ev.replyToken, [textMessage('โปรดแชร์ตำแหน่งของคุณเพื่อให้ฉันสามารถค้นหาสถานที่ใกล้ตัวคุณได้')]);
       break;
     case 'popular_recommendations':
       await db.setContext(userId, 'awaiting_province_for_popular', {});
-      await lineService.replyMessage(ev.replyToken, [textMessage('Which province or country are you interested in?')]);
+      await lineService.replyMessage(ev.replyToken, [textMessage('คุณสนใจจังหวัดหรือประเทศไหน?')]);
       break;
     case 'search_by_category':
       await db.setContext(userId, 'awaiting_category', {});
-      await lineService.replyMessage(ev.replyToken, [textMessage('Please type a category (e.g., restaurants, temples, beaches).')]);
+      await lineService.replyMessage(ev.replyToken, [textMessage('กรุณาพิมพ์หมวดหมู่ (เช่น ร้านอาหาร วัด ชายหาด)')]);
       break;
     case 'plan_my_trip':
       // Start multi-step trip planning: ask for destination first
       await db.setContext(userId, 'planning_trip_destination', { trip: {} });
-      await lineService.replyMessage(ev.replyToken, [textMessage('Let\'s plan your trip. What is your desired destination?')]);
+      await lineService.replyMessage(ev.replyToken, [textMessage('เรามาวางแผนการเดินทางของคุณกันเถอะ จุดหมายปลายทางที่คุณต้องการคืออะไร?')]);
       break;
     case 'general_inquiry':
       // Put user into general inquiry mode so subsequent messages are routed to Gemini
       await db.setContext(userId, 'general_inquiry', {});
-      await lineService.replyMessage(ev.replyToken, [textMessage('You are now in General Inquiry mode. Ask me anything and I will reply.')]);
+      await lineService.replyMessage(ev.replyToken, [textMessage('คุณอยู่ในโหมดสอบถามข้อมูลทั่วไปแล้ว ถามฉันได้ทุกอย่างและฉันจะตอบกลับคุณ')]);
       break;
     default:
-      await lineService.replyMessage(ev.replyToken, [textMessage('Unknown action')]);
+      await lineService.replyMessage(ev.replyToken, [textMessage('การกระทำที่ไม่รู้จัก')]);
   }
 }
 
@@ -128,7 +128,7 @@ async function handleMessageEvent(ev) {
     const escapeCmd = /^(cancel|back|ยกเลิก|กลับ)$/i;
     if (escapeCmd.test(text)) {
       await db.setContext(userId, null, {});
-      await lineService.replyMessage(ev.replyToken, [textMessage('Conversation cancelled. You can start again from the menu.')]);
+      await lineService.replyMessage(ev.replyToken, [textMessage('ยกเลิกการสนทนาแล้ว คุณสามารถเริ่มต้นใหม่จากเมนู')]);
       return;
     }
 
@@ -143,7 +143,7 @@ async function handleMessageEvent(ev) {
       text === 'ค้นหาสถานที่'
     ) {
       await db.setContext(userId, 'awaiting_search_query', {});
-      await lineService.replyMessage(ev.replyToken, [textMessage('Please type the name of the place you want to search for.')]);
+      await lineService.replyMessage(ev.replyToken, [textMessage('กรุณาพิมพ์ชื่อสถานที่ที่คุณต้องการค้นหา')]);
       return;
     }
 
@@ -155,7 +155,7 @@ async function handleMessageEvent(ev) {
       text === 'ใกล้ฉัน'
     ) {
       await db.setContext(userId, 'awaiting_location_for_nearby', {});
-      await lineService.replyMessage(ev.replyToken, [textMessage('Please share your location so I can find places near you.')]);
+      await lineService.replyMessage(ev.replyToken, [textMessage('โปรดแชร์ตำแหน่งของคุณเพื่อให้ฉันสามารถค้นหาสถานที่ใกล้ตัวคุณได้')]);
       return;
     }
 
@@ -167,7 +167,7 @@ async function handleMessageEvent(ev) {
       text === 'ค้นหาตามหมวดหมู่'
     ) {
       await db.setContext(userId, 'awaiting_category', {});
-      await lineService.replyMessage(ev.replyToken, [textMessage('Please type a category (e.g., restaurants, temples, beaches).')]);
+      await lineService.replyMessage(ev.replyToken, [textMessage('กรุณาพิมพ์หมวดหมู่ (เช่น ร้านอาหาร วัด ชายหาด)')]);
       return;
     }
 
@@ -193,7 +193,7 @@ async function handleMessageEvent(ev) {
       text === 'วางแผนการเดินทาง'
     ) {
       await db.setContext(userId, 'planning_trip_destination', { trip: {} });
-      await lineService.replyMessage(ev.replyToken, [textMessage('Let\'s plan your trip. What is your desired destination?')]);
+      await lineService.replyMessage(ev.replyToken, [textMessage('มาวางแผนการเดินทางกันเถอะ จุดหมายปลายทางที่คุณต้องการคืออะไร?')]);
       return;
     }
 
@@ -205,7 +205,7 @@ async function handleMessageEvent(ev) {
       text === 'ทั่วไป'
     ) {
       await db.setContext(userId, 'general_inquiry', {});
-      await lineService.replyMessage(ev.replyToken, [textMessage('You are now in General Inquiry mode. Ask me anything and I will reply.')]);
+      await lineService.replyMessage(ev.replyToken, [textMessage('ขณะนี้คุณอยู่ในโหมดการสอบถามทั่วไป ถามฉันอะไรฉันจะตอบ')]);
       return;
     }
 
@@ -215,7 +215,7 @@ async function handleMessageEvent(ev) {
       meta.trip = meta.trip || {};
       meta.trip.destination = text;
       await db.setContext(userId, 'planning_trip_days', meta);
-      await lineService.replyMessage(ev.replyToken, [textMessage('How many days will you be traveling?')]);
+      await lineService.replyMessage(ev.replyToken, [textMessage('คุณจะเดินทางกี่วัน?')]);
       return;
     }
 
@@ -225,7 +225,7 @@ async function handleMessageEvent(ev) {
       const days = parseInt(text, 10);
       meta.trip.days = Number.isNaN(days) ? text : days;
       await db.setContext(userId, 'planning_trip_style', meta);
-      await lineService.replyMessage(ev.replyToken, [textMessage('What\'s your travel style (e.g., nature, food, culture)?')]);
+      await lineService.replyMessage(ev.replyToken, [textMessage('สไตล์การเดินทางของคุณเป็นอย่างไร (เช่น ธรรมชาติ อาหาร วัฒนธรรม)?')]);
       return;
     }
 
@@ -297,7 +297,7 @@ async function handleMessageEvent(ev) {
     // Nearby textual queries asking "near me" -> ask for location (keeps previous behavior)
     if (/near me/i.test(text) || /nearby/i.test(text) || /ใกล้ฉัน/.test(text)) {
       await db.setContext(userId, 'awaiting_location_for_nearby_query', { query: text });
-      await lineService.replyMessage(ev.replyToken, [textMessage('Please share your location so I can find places near you.')]);
+      await lineService.replyMessage(ev.replyToken, [textMessage('โปรดแชร์ตำแหน่งของคุณเพื่อให้ฉันสามารถค้นหาสถานที่ใกล้ตัวคุณได้')]);
       return;
     }
 
@@ -352,7 +352,7 @@ async function handleMessageEvent(ev) {
       await db.setContext(userId, null, {});
       return;
     }
-    await lineService.replyMessage(ev.replyToken, [textMessage('Thanks for the location! Tell me what you want to find near there.')]);
+    await lineService.replyMessage(ev.replyToken, [textMessage('ขอบคุณสำหรับสถานที่! บอกฉันว่าคุณต้องการหาอะไรแถวนั้น')]);
   }
 }
 
