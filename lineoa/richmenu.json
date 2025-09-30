@@ -1,0 +1,50 @@
+{
+  "size": {
+    "width": 2500,
+    "height": 1686
+  },
+  "selected": false,
+  "name": "Travel Bot Menu",
+  "chatBarText": "Menu",
+  "areas": [
+    {
+      "bounds": {
+        "x": 0,
+        "y": 843,
+        "width": 833,
+        "height": 843
+      },
+      "action": {
+        "type": "postback",
+        "label": "Search Place",
+        "data": "{\"action\": \"search_place\"}"
+      }
+    },
+    {
+      "bounds": {
+        "x": 833,
+        "y": 843,
+        "width": 833,
+        "height": 843
+      },
+      "action": {
+        "type": "postback",
+        "label": "Nearby Places",
+        "data": "{\"action\": \"nearby_places\"}"
+      }
+    },
+    {
+      "bounds": {
+        "x": 1666,
+        "y": 843,
+        "width": 834,
+        "height": 843
+      },
+      "action": {
+        "type": "postback",
+        "label": "Help",
+        "data": "{\"action\": \"help\"}"
+      }
+    }
+  ]
+}
